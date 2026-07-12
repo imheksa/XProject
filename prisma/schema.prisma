@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// An X (Twitter) account that has authenticated with this app.
+model User {
+  id              String   @id // X user id
+  username        String
+  name            String
+  profileImageUrl String?
+  accessTokenEnc  String // AES-256-GCM encrypted OAuth2 access token
+  refreshTokenEnc String? // AES-256-GCM encrypted OAuth2 refresh token
+  tokenExpiresAt  DateTime
+  scope           String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  scans ScanRun[]
+  jobs  Job[]
+}
+
+// ScanCategory: "NOT_FOLLOWING_BACK" | "NON_PREMIUM" | "INACTIVE_FOLLOWING" | "INACTIVE_FOLLOWER"
+// ScanStatus: "RUNNING" | "COMPLETED" | "FAILED"
+// (SQLite has no native enum type, so these are plain strings; see src/lib/types.ts)
+
+// A single "scan" pass over a user's followers/following graph.
+model ScanRun {
+  id             String    @id @default(cuid())
+  userId         String
+  status         String    @default("RUNNING")
+  followingCount Int       @default(0)
+  followersCount Int       @default(0)
+  error          String?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ScanResult[]
+
+  @@index([userId])
+}
+
+// One flagged account discovered during a scan, bucketed into a category.
+model ScanResult {
+  id                    String   @id @default(cuid())
+  scanRunId             String
+  category              String
+  targetUserId          String
+  targetUsername        String
+  targetName            String
+  targetProfileImageUrl String?
+  verified              Boolean  @default(false)
+  lastActiveAt          DateTime?
+  createdAt             DateTime @default(now())
+
+  scanRun ScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+
+  @@index([scanRunId, category])
+}
+
+// JobType: "UNFOLLOW_NOT_FOLLOWING_BACK" | "UNFOLLOW_NON_PREMIUM" | "UNFOLLOW_INACTIVE" | "REMOVE_INACTIVE_FOLLOWERS"
+// JobStatus: "PENDING" | "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED" | "CANCELLED"
+
+// A queued bulk action (unfollow / remove) that gets worked off slowly to
+// respect X API rate limits.
+model Job {
+  id             String   @id @default(cuid())
+  userId         String
+  type           String
+  status         String   @default("PENDING")
+  totalItems     Int       @default(0)
+  processedItems Int       @default(0)
+  failedItems    Int       @default(0)
+  pausedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items JobItem[]
+
+  @@index([userId])
+}
+
+// JobItemStatus: "PENDING" | "DONE" | "FAILED" | "SKIPPED" | "RATE_LIMITED"
+
+model JobItem {
+  id             String    @id @default(cuid())
+  jobId          String
+  targetUserId   String
+  targetUsername String
+  status         String    @default("PENDING")
+  error          String?
+  processedAt    DateTime?
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, status])
+}
