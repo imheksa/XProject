@@ -78,9 +78,41 @@ a serverless platform instead, point an external cron at
   `TOKEN_ENCRYPTION_KEY` and never exposed to the client.
 - Sessions are stored in a signed, encrypted cookie (`iron-session`) keyed
   by `SESSION_SECRET`.
-- SQLite is used by default for simplicity; swap `DATABASE_URL` for a
-  Postgres/MySQL connection string in production (the schema is portable
-  since it avoids native enum types).
+- Uses Postgres (via `DATABASE_URL`). For local development without a
+  Postgres server handy, point it at any local/hosted Postgres instance —
+  the schema avoids native enum types so it stays portable across engines.
+
+## Deploy to Railway
+
+This app assumes a long-running Node process (for the in-process job
+worker), which fits Railway's model directly — no serverless/cron
+workaround needed.
+
+1. **Create the service**: in the Railway dashboard, New Project → Deploy
+   from GitHub repo → select this repo and the branch you want deployed.
+   Railway auto-detects Next.js via Nixpacks; the `build`/`start` scripts in
+   `package.json` already run `prisma generate`/`prisma migrate deploy` at
+   the right times.
+2. **Add Postgres**: in the same project, "+ New" → Database → PostgreSQL.
+   Railway creates a `DATABASE_URL` variable on that Postgres service.
+3. **Generate a public domain** for the web service: Settings → Networking
+   → Generate Domain. Note the URL (e.g. `https://your-app.up.railway.app`).
+4. **Set environment variables** on the web service:
+   - `DATABASE_URL` → reference the Postgres service's variable (Railway
+     lets you pick `${{Postgres.DATABASE_URL}}` from the variable picker)
+   - `X_CLIENT_ID` / `X_CLIENT_SECRET` → from the X Developer Portal
+   - `X_REDIRECT_URI` → `https://<your-railway-domain>/api/auth/callback`
+   - `SESSION_SECRET` / `TOKEN_ENCRYPTION_KEY` → each `openssl rand -base64 32`
+   - `MIN_ACTION_INTERVAL_MS` → `3000` (optional, this is the default)
+5. **Add the same callback URL** (`https://<your-railway-domain>/api/auth/callback`)
+   to the X app's OAuth 2.0 callback URI list in the Developer Portal —
+   X rejects callbacks that aren't explicitly allow-listed there.
+6. Redeploy (Railway redeploys automatically on env var changes), then open
+   the domain and sign in with X to confirm everything's wired up.
+
+Prefer the CLI? `railway login`, `railway link` (to an existing project),
+then `railway up` to deploy and `railway variables --set KEY=VALUE` to set
+each env var above.
 
 ## Rate limits
 
