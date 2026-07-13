@@ -19,6 +19,32 @@ export const MOCK_PROFILE = {
   capturedAt: now().toISOString(),
 };
 
+function mockMetricSeries(windowDays: 7 | 30) {
+  const startFollowers = 1240 - 18 * (windowDays / 30);
+  return Array.from({ length: windowDays }, (_, i) => {
+    const followersCount = Math.round(startFollowers + (18 * (windowDays / 30) * i) / (windowDays - 1) + Math.sin(i) * 2);
+    const postsCount = Math.random() < 0.6 ? Math.round(Math.random() * 2) : 0;
+    const likes = postsCount ? Math.round(80 + Math.random() * 300) : 0;
+    const retweets = Math.round(likes * 0.18);
+    const replies = Math.round(likes * 0.12);
+    const engagementRatePct = followersCount > 0 ? ((likes + retweets + replies) / followersCount) * 100 : 0;
+    return {
+      date: daysAgo(windowDays - 1 - i).toISOString(),
+      followersCount,
+      postsCount,
+      likes,
+      retweets,
+      replies,
+      engagementRatePct,
+    };
+  });
+}
+
+export const MOCK_METRIC_SERIES: Record<7 | 30, ReturnType<typeof mockMetricSeries>> = {
+  7: mockMetricSeries(7),
+  30: mockMetricSeries(30),
+};
+
 export const MOCK_SCAN = {
   id: "demo-scan",
   completedAt: now().toISOString(),

@@ -100,3 +100,69 @@ export async function getAnalyticsSummary(
     topPosts,
   };
 }
+
+export interface MetricPoint {
+  date: string;
+  followersCount: number;
+  postsCount: number;
+  likes: number;
+  retweets: number;
+  replies: number;
+  engagementRatePct: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+/**
+ * One data point per day over the window, for the Overview page's line
+ * charts (follower count, posts, likes, retweets, replies, engagement
+ * rate). Pure read-model, same as getAnalyticsSummary -- no X API calls.
+ */
+export async function getMetricSeries(userId: string, windowDays: AnalyticsWindow): Promise<MetricPoint[]> {
+  const start = startOfDay(new Date(Date.now() - (windowDays - 1) * DAY_MS));
+
+  const [snapshots, priorSnapshot, posts] = await Promise.all([
+    prisma.profileSnapshot.findMany({ where: { userId, capturedAt: { gte: start } }, orderBy: { capturedAt: "asc" } }),
+    prisma.profileSnapshot.findFirst({ where: { userId, capturedAt: { lt: start } }, orderBy: { capturedAt: "desc" } }),
+    prisma.postMetric.findMany({ where: { userId, postedAt: { gte: start } } }),
+  ]);
+
+  const points: MetricPoint[] = [];
+  let carriedFollowers = priorSnapshot?.followersCount ?? snapshots[0]?.followersCount ?? 0;
+  let snapshotIdx = 0;
+
+  for (let i = 0; i < windowDays; i++) {
+    const dayStart = new Date(start.getTime() + i * DAY_MS);
+    const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+
+    while (snapshotIdx < snapshots.length && snapshots[snapshotIdx].capturedAt < dayEnd) {
+      carriedFollowers = snapshots[snapshotIdx].followersCount;
+      snapshotIdx += 1;
+    }
+
+    const dayPosts = posts.filter((p) => p.postedAt >= dayStart && p.postedAt < dayEnd);
+    const likes = sum(dayPosts.map((p) => p.likeCount));
+    const retweets = sum(dayPosts.map((p) => p.retweetCount));
+    const replies = sum(dayPosts.map((p) => p.replyCount));
+    const quotes = sum(dayPosts.map((p) => p.quoteCount));
+    const engagement = likes + retweets + replies + quotes;
+
+    points.push({
+      date: dayStart.toISOString(),
+      followersCount: carriedFollowers,
+      postsCount: dayPosts.length,
+      likes,
+      retweets,
+      replies,
+      engagementRatePct: carriedFollowers > 0 ? (engagement / carriedFollowers) * 100 : 0,
+    });
+  }
+
+  return points;
+}

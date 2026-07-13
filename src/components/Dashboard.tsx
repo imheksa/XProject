@@ -81,7 +81,7 @@ export default function Dashboard({ me, demo = false }: { me: Me; demo?: boolean
 
         <main className="flex-1 p-6">
           <div className="mx-auto w-full max-w-3xl">
-            {active === "overview" && <OverviewSection demo={demo} onNavigate={setActive} />}
+            {active === "overview" && <OverviewSection me={me} demo={demo} />}
             {active === "cleanup" && <CleanupSection demo={demo} />}
             {active === "analytics" && <AnalyticsSection demo={demo} />}
             {active === "competitors" && <CompetitorsSection demo={demo} />}
