@@ -63,6 +63,103 @@ export const MOCK_REVIEW_ITEMS: Record<ScanCategory, ReturnType<typeof mockItems
   INACTIVE_FOLLOWER: mockItemsFor("INACTIVE_FOLLOWER", 210, true),
 };
 
+const TOP_POST_TEXTS = [
+  "Shipped a big update today — here's what's new and why it matters for you.",
+  "Hot take: most \"productivity\" advice is just procrastination with extra steps.",
+  "Thread: everything I learned building this in public over the last 90 days 🧵",
+  "Small thing that made a huge difference this week.",
+  "Ask me anything — I'll answer the best ones tonight.",
+];
+
+function mockAnalytics(windowDays: 7 | 30) {
+  const postCount = windowDays === 7 ? 8 : 34;
+  const topPosts = TOP_POST_TEXTS.map((text, i) => {
+    const likeCount = Math.round((windowDays === 7 ? 420 : 1200) / (i + 1));
+    const retweetCount = Math.round(likeCount * 0.18);
+    const replyCount = Math.round(likeCount * 0.12);
+    const quoteCount = Math.round(likeCount * 0.05);
+    return {
+      id: `demo-post-${i}`,
+      text,
+      postedAt: daysAgo(i * 2 + 1).toISOString(),
+      likeCount,
+      retweetCount,
+      replyCount,
+      quoteCount,
+      engagement: likeCount + retweetCount + replyCount + quoteCount,
+    };
+  });
+  const totalLikes = topPosts.reduce((a, p) => a + p.likeCount, 0);
+  const totalRetweets = topPosts.reduce((a, p) => a + p.retweetCount, 0);
+  const totalReplies = topPosts.reduce((a, p) => a + p.replyCount, 0);
+  const totalQuotes = topPosts.reduce((a, p) => a + p.quoteCount, 0);
+  const totalEngagement = totalLikes + totalRetweets + totalReplies + totalQuotes;
+
+  const growthPoints = windowDays === 7 ? 7 : 12;
+  const growth = Array.from({ length: growthPoints }, (_, i) => ({
+    date: daysAgo(windowDays - (i * windowDays) / (growthPoints - 1)).toISOString(),
+    followersCount: 1180 + Math.round((i / (growthPoints - 1)) * 60 + Math.sin(i) * 5),
+  }));
+
+  return {
+    windowDays,
+    totalPosts: postCount,
+    totalEngagement,
+    totalLikes,
+    totalRetweets,
+    totalReplies,
+    totalQuotes,
+    avgEngagementPerPost: totalEngagement / topPosts.length,
+    engagementRatePct: (totalEngagement / topPosts.length / 1240) * 100,
+    replySharePct: (totalReplies / totalEngagement) * 100,
+    followingFollowersRatio: 890 / 1240,
+    growth,
+    topPosts,
+  };
+}
+
+export const MOCK_ANALYTICS: Record<7 | 30, ReturnType<typeof mockAnalytics>> = {
+  7: mockAnalytics(7),
+  30: mockAnalytics(30),
+};
+
+export const MOCK_COMPETITORS = [
+  {
+    id: "demo-competitor-1",
+    username: "rival_creator",
+    followersCount: 2100,
+    followingCount: 340,
+    postsLast30d: 21,
+    followersGrowth30d: 45,
+    vsYourFollowers: 2100 - 1240,
+    vsYourPosts30d: 21 - 34,
+  },
+];
+
+export const MOCK_NOTIFICATIONS = [
+  {
+    id: "demo-notif-1",
+    type: "TREND_MATCH",
+    title: "#BuildInPublic",
+    body: '"#BuildInPublic" is trending and matches your niche/keywords (48,200 posts).',
+    read: false,
+    createdAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "demo-notif-2",
+    type: "TREND_MATCH",
+    title: "indie hackers",
+    body: '"indie hackers" is trending and matches your niche/keywords (12,900 posts).',
+    read: true,
+    createdAt: daysAgo(1).toISOString(),
+  },
+];
+
+export const MOCK_PREFERENCES = {
+  niche: "Indie SaaS / dev tools",
+  keywords: ["build in public", "indie hacker", "saas"],
+};
+
 export const MOCK_JOBS_SEED = [
   {
     id: "demo-job-1",

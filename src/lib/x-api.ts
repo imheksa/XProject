@@ -250,34 +250,70 @@ export async function getTweetCreatedAtByIds(
   return result;
 }
 
+export interface XPost {
+  id: string;
+  text: string;
+  created_at: string;
+  public_metrics?: {
+    retweet_count: number;
+    reply_count: number;
+    like_count: number;
+    quote_count: number;
+    impression_count?: number;
+  };
+}
+
 /**
- * Counts a user's own posts since a given date via their tweet timeline
- * (not the search/counts endpoints, which cap history at 7 days on
- * non-Enterprise tiers). Capped at `maxPages` requests (100 tweets each)
- * to bound API credit usage for very high-volume accounts.
+ * Fetches a user's own posts since a given date, with engagement metrics,
+ * via their tweet timeline (not the search/counts endpoints, which cap
+ * history at 7 days on non-Enterprise tiers). Capped at `maxPages` requests
+ * (100 posts each) to bound API credit usage for very high-volume accounts.
  */
-export async function getUserPostCountSince(
+export async function getUserPostsWithMetrics(
   accessToken: string,
   userId: string,
   since: Date,
   maxPages = 5,
-): Promise<number> {
-  let total = 0;
+): Promise<XPost[]> {
+  const posts: XPost[] = [];
   let token: string | undefined;
   let pages = 0;
   do {
     const params = new URLSearchParams({
       max_results: "100",
       start_time: since.toISOString(),
+      "tweet.fields": "created_at,public_metrics",
     });
     if (token) params.set("pagination_token", token);
     const res = await xFetch(`/users/${userId}/tweets?${params.toString()}`, accessToken);
     const json = await res.json();
-    total += json.meta?.result_count ?? 0;
+    posts.push(...(json.data ?? []));
     token = json.meta?.next_token;
     pages += 1;
   } while (token && pages < maxPages);
-  return total;
+  return posts;
+}
+
+export async function getUserByUsername(accessToken: string, username: string): Promise<XUser> {
+  const res = await xFetch(`/users/by/username/${encodeURIComponent(username)}?user.fields=${USER_FIELDS}`, accessToken);
+  const json = await res.json();
+  return json.data;
+}
+
+export interface XTrend {
+  trend_name: string;
+  tweet_count?: number;
+}
+
+/**
+ * Trending topics for a location (WOEID, default 1 = worldwide). Note:
+ * access to this endpoint varies by API plan -- callers should treat a
+ * failure here as "unavailable on this tier" rather than a hard error.
+ */
+export async function getTrendingTopics(accessToken: string, woeid = 1): Promise<XTrend[]> {
+  const res = await xFetch(`/trends/by/woeid/${woeid}`, accessToken);
+  const json = await res.json();
+  return json.data ?? [];
 }
 
 export async function unfollowUser(accessToken: string, sourceUserId: string, targetUserId: string): Promise<void> {

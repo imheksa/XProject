@@ -24,9 +24,15 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  scans            ScanRun[]
-  jobs             Job[]
-  profileSnapshots ProfileSnapshot[]
+  scans              ScanRun[]
+  jobs               Job[]
+  profileSnapshots   ProfileSnapshot[]
+  postMetrics        PostMetric[]
+  trackedCompetitors TrackedCompetitor[]
+  notifications      Notification[]
+  niche              String?
+  keywords           String[]            @default([])
+  lastTrendsCheckAt  DateTime?
 }
 
 // A cheap, frequent snapshot of profile-level metrics (unlike ScanRun, which
@@ -68,16 +74,16 @@ model ScanRun {
 
 // One flagged account discovered during a scan, bucketed into a category.
 model ScanResult {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   scanRunId             String
   category              String
   targetUserId          String
   targetUsername        String
   targetName            String
   targetProfileImageUrl String?
-  verified              Boolean  @default(false)
+  verified              Boolean   @default(false)
   lastActiveAt          DateTime?
-  createdAt             DateTime @default(now())
+  createdAt             DateTime  @default(now())
 
   scanRun ScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
 
@@ -90,10 +96,10 @@ model ScanResult {
 // A queued bulk action (unfollow / remove) that gets worked off slowly to
 // respect X API rate limits.
 model Job {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String
   type           String
-  status         String   @default("PENDING")
+  status         String    @default("PENDING")
   totalItems     Int       @default(0)
   processedItems Int       @default(0)
   failedItems    Int       @default(0)
@@ -121,4 +127,68 @@ model JobItem {
   job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId, status])
+}
+
+// A cached copy of one of the user's own posts with its current engagement
+// metrics, refreshed on the same throttled cadence as ProfileSnapshot. Lets
+// the analytics dashboard compute 7D/30D aggregates and "top content"
+// without re-fetching from X on every dashboard load.
+model PostMetric {
+  id              String   @id // X post/tweet id
+  userId          String
+  text            String
+  postedAt        DateTime
+  likeCount       Int      @default(0)
+  retweetCount    Int      @default(0)
+  replyCount      Int      @default(0)
+  quoteCount      Int      @default(0)
+  impressionCount Int?
+  capturedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, postedAt])
+}
+
+// A competitor's X account the user has chosen to benchmark against.
+model TrackedCompetitor {
+  id                 String   @id @default(cuid())
+  userId             String
+  competitorUserId   String
+  competitorUsername String
+  createdAt          DateTime @default(now())
+
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots CompetitorSnapshot[]
+
+  @@unique([userId, competitorUserId])
+}
+
+model CompetitorSnapshot {
+  id                  String   @id @default(cuid())
+  trackedCompetitorId String
+  followersCount      Int
+  followingCount      Int
+  postsLast30d        Int
+  capturedAt          DateTime @default(now())
+
+  trackedCompetitor TrackedCompetitor @relation(fields: [trackedCompetitorId], references: [id], onDelete: Cascade)
+
+  @@index([trackedCompetitorId, capturedAt])
+}
+
+// An in-app alert, e.g. a trending topic matching the user's configured
+// niche/keywords. NotificationType: "TREND_MATCH" (more types may be added).
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
 }

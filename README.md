@@ -73,6 +73,23 @@ Then open http://localhost:3000 and sign in with X.
   30-day growth is computed from snapshots this app has taken itself —
   it's only meaningful once the app has been running for ~30 days; until
   then the UI shows growth "since" the first snapshot instead.
+- **Analytics dashboard**: a 7D/30D toggle over the same cached data plus a
+  `PostMetric` cache of your own posts and their engagement (likes,
+  retweets, replies, quotes), refreshed on the same throttle as profile
+  stats (one extra `tweet.fields=public_metrics` request, no added API
+  cost). Shows total engagement, engagement rate, reply share, a follower
+  growth chart, and your top posts by engagement for the selected window.
+- **Competitor comparison**: track up to 3 accounts by @username
+  (`TrackedCompetitor` + `CompetitorSnapshot`) and see followers/following/
+  posts side-by-side with deltas against your own numbers, refreshed on
+  the same throttle.
+- **Niche/keyword trend alerts**: set a niche and keywords, and the app
+  checks X's trending-topics endpoint (`GET /2/trends/by/woeid/:woeid`,
+  worldwide by default) on a throttle (`MIN_TRENDS_CHECK_INTERVAL_MS`,
+  default 3h) and creates an in-app `Notification` for any match. Access
+  to the trends endpoint varies by X API plan — if it's unavailable on
+  yours, the bell just won't surface trend matches rather than erroring.
+  Email/push delivery isn't implemented yet; notifications are in-app only.
 
 ### Running the background worker
 

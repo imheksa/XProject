@@ -5,6 +5,11 @@ import Link from "next/link";
 import { JOB_TYPE_LABELS, JOB_TYPE_TO_CATEGORY, SCAN_CATEGORIES, type JobType, type ScanCategory } from "@/lib/types";
 import { daysAgo, formatDate } from "@/lib/format";
 import { MOCK_JOBS_SEED, MOCK_PROFILE, MOCK_REVIEW_ITEMS, MOCK_SCAN } from "@/lib/mockData";
+import { api } from "@/lib/apiClient";
+import AnalyticsSection from "@/components/AnalyticsSection";
+import CompetitorsSection from "@/components/CompetitorsSection";
+import NotificationsBell from "@/components/NotificationsBell";
+import PreferencesForm from "@/components/PreferencesForm";
 
 interface Me {
   id: string;
@@ -81,13 +86,6 @@ const JOB_STATUS_STYLE: Record<string, { dot: string; label: string }> = {
   FAILED: { dot: "#d03b3b", label: "Failed" },
   CANCELLED: { dot: "#898781", label: "Cancelled" },
 };
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? `Request to ${path} failed`);
-  return json;
-}
 
 function StatusDot({ color }: { color: string }) {
   return <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
@@ -278,12 +276,15 @@ export default function Dashboard({ me, demo = false }: { me: Me; demo?: boolean
             <div className="text-sm text-neutral-500">@{me.username}</div>
           </div>
         </div>
-        <button
-          onClick={handleSignOut}
-          className="rounded-full border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-700 hover:text-white"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationsBell demo={demo} />
+          <button
+            onClick={handleSignOut}
+            className="rounded-full border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-700 hover:text-white"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -298,6 +299,8 @@ export default function Dashboard({ me, demo = false }: { me: Me; demo?: boolean
           <GrowthTile growth={profile.followersGrowth30d} since={profile.followersGrowthSince} />
         </section>
       )}
+
+      <AnalyticsSection demo={demo} />
 
       <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
         <div className="flex items-center justify-between gap-4">
@@ -395,6 +398,9 @@ export default function Dashboard({ me, demo = false }: { me: Me; demo?: boolean
           </div>
         </section>
       )}
+
+      <CompetitorsSection demo={demo} />
+      <PreferencesForm demo={demo} />
 
       {reviewCategory && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/60 p-4" onClick={() => setReviewCategory(null)}>

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireAccessToken } from "@/lib/auth";
-import { getMe, getUserPostCountSince } from "@/lib/x-api";
+import { getMe, getUserPostsWithMetrics } from "@/lib/x-api";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const MIN_REFRESH_INTERVAL_MS = Number(process.env.MIN_PROFILE_REFRESH_INTERVAL_MS ?? 6 * 60 * 60 * 1000);
@@ -40,6 +40,47 @@ async function findBaseline(userId: string, latestId: string) {
   return oldest && oldest.id !== latestId ? oldest : null;
 }
 
+/**
+ * Pulls the user's own posts from the last 30 days (with engagement
+ * metrics) and upserts them into PostMetric, dropping anything that's
+ * aged out of the 30-day window. Shared by the profile snapshot (which
+ * only needs the count) and the analytics dashboard (which needs the
+ * metrics) so both features cost a single API round-trip per refresh.
+ */
+async function refreshPostMetrics(userId: string, accessToken: string, since: Date) {
+  const posts = await getUserPostsWithMetrics(accessToken, userId, since);
+
+  await prisma.$transaction([
+    prisma.postMetric.deleteMany({ where: { userId, postedAt: { lt: since } } }),
+    ...posts.map((p) =>
+      prisma.postMetric.upsert({
+        where: { id: p.id },
+        create: {
+          id: p.id,
+          userId,
+          text: p.text,
+          postedAt: new Date(p.created_at),
+          likeCount: p.public_metrics?.like_count ?? 0,
+          retweetCount: p.public_metrics?.retweet_count ?? 0,
+          replyCount: p.public_metrics?.reply_count ?? 0,
+          quoteCount: p.public_metrics?.quote_count ?? 0,
+          impressionCount: p.public_metrics?.impression_count,
+        },
+        update: {
+          likeCount: p.public_metrics?.like_count ?? 0,
+          retweetCount: p.public_metrics?.retweet_count ?? 0,
+          replyCount: p.public_metrics?.reply_count ?? 0,
+          quoteCount: p.public_metrics?.quote_count ?? 0,
+          impressionCount: p.public_metrics?.impression_count,
+          capturedAt: new Date(),
+        },
+      }),
+    ),
+  ]);
+
+  return posts.length;
+}
+
 /** Returns the cached profile summary, refreshing from X only if the cache is stale. */
 export async function getOrRefreshProfileSummary(userId: string): Promise<ProfileSummary | null> {
   const latest = await prisma.profileSnapshot.findFirst({ where: { userId }, orderBy: { capturedAt: "desc" } });
@@ -52,7 +93,7 @@ export async function getOrRefreshProfileSummary(userId: string): Promise<Profil
   const { accessToken } = await requireAccessToken(userId);
   const me = await getMe(accessToken);
   const since = new Date(Date.now() - THIRTY_DAYS_MS);
-  const postsLast30d = await getUserPostCountSince(accessToken, userId, since);
+  const postsLast30d = await refreshPostMetrics(userId, accessToken, since);
 
   const fresh = await prisma.profileSnapshot.create({
     data: {
