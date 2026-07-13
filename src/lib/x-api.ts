@@ -56,6 +56,17 @@ function getClientCredentials() {
   return { clientId, clientSecret, redirectUri };
 }
 
+/**
+ * The public origin of this app, derived from X_REDIRECT_URI rather than the
+ * incoming request. Behind some reverse proxies, `req.url` resolves to the
+ * container's internal host:port instead of the public domain, which would
+ * send OAuth redirects to an unreachable address.
+ */
+export function getAppOrigin(): string {
+  const { redirectUri } = getClientCredentials();
+  return new URL(redirectUri).origin;
+}
+
 export function buildAuthorizeUrl(state: string, codeChallenge: string): string {
   const { clientId, redirectUri } = getClientCredentials();
   const params = new URLSearchParams({

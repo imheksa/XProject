@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { encrypt } from "@/lib/crypto";
-import { exchangeCodeForToken, getMe } from "@/lib/x-api";
+import { exchangeCodeForToken, getAppOrigin, getMe } from "@/lib/x-api";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
@@ -10,18 +10,19 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const error = searchParams.get("error");
+  const origin = getAppOrigin();
 
   const pending = session.oauth;
   session.oauth = undefined;
 
   if (error) {
     await session.save();
-    return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, req.url));
+    return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error)}`, origin));
   }
 
   if (!code || !state || !pending || state !== pending.state) {
     await session.save();
-    return NextResponse.redirect(new URL("/?error=invalid_oauth_state", req.url));
+    return NextResponse.redirect(new URL("/?error=invalid_oauth_state", origin));
   }
 
   try {
@@ -53,10 +54,10 @@ export async function GET(req: NextRequest) {
 
     session.userId = me.id;
     await session.save();
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/", origin));
   } catch (err) {
     await session.save();
     const message = err instanceof Error ? err.message : "unknown_error";
-    return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(message)}`, req.url));
+    return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(message)}`, origin));
   }
 }
