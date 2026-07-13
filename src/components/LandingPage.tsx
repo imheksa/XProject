@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const FEATURES = [
   {
     title: "Unfollow accounts that don't follow back",
@@ -45,12 +47,20 @@ export default function LandingPage() {
           Bulk-unfollow accounts that don&apos;t follow back, aren&apos;t Premium, or have gone inactive &mdash;
           and remove inactive followers &mdash; without risking your account on scripts or sketchy tools.
         </p>
-        <a
-          href="/api/auth/login"
-          className="rounded-full bg-white px-6 py-3 font-semibold text-black hover:bg-neutral-200"
-        >
-          Sign in with X to get started
-        </a>
+        <div className="flex flex-col items-center gap-3 sm:flex-row">
+          <a
+            href="/api/auth/login"
+            className="rounded-full bg-white px-6 py-3 font-semibold text-black hover:bg-neutral-200"
+          >
+            Sign in with X to get started
+          </a>
+          <Link
+            href="/demo"
+            className="rounded-full border border-neutral-700 px-6 py-3 font-semibold hover:bg-neutral-900"
+          >
+            See a live demo
+          </Link>
+        </div>
         <p className="text-xs text-neutral-500">
           Nothing is changed until you review and confirm each action.
         </p>

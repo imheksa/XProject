@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { JOB_TYPE_LABELS, JOB_TYPE_TO_CATEGORY, SCAN_CATEGORIES, type JobType, type ScanCategory } from "@/lib/types";
 import { daysAgo, formatDate } from "@/lib/format";
+import { MOCK_JOBS_SEED, MOCK_PROFILE, MOCK_REVIEW_ITEMS, MOCK_SCAN } from "@/lib/mockData";
 
 interface Me {
   id: string;
@@ -91,16 +93,17 @@ function StatusDot({ color }: { color: string }) {
   return <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
 }
 
-export default function Dashboard({ me }: { me: Me }) {
-  const [scan, setScan] = useState<ScanSummary | null>(null);
-  const [profile, setProfile] = useState<ProfileSummary | null>(null);
-  const [jobs, setJobs] = useState<JobRow[]>([]);
+export default function Dashboard({ me, demo = false }: { me: Me; demo?: boolean }) {
+  const [scan, setScan] = useState<ScanSummary | null>(demo ? MOCK_SCAN : null);
+  const [profile, setProfile] = useState<ProfileSummary | null>(demo ? MOCK_PROFILE : null);
+  const [jobs, setJobs] = useState<JobRow[]>(demo ? MOCK_JOBS_SEED : []);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewCategory, setReviewCategory] = useState<ScanCategory | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [confirmType, setConfirmType] = useState<JobType | null>(null);
   const [startingJob, setStartingJob] = useState(false);
+  const demoIntervals = useRef<Set<ReturnType<typeof setInterval>>>(new Set());
 
   const refreshScan = useCallback(async () => {
     const { scan } = await api<{ scan: ScanSummary | null }>("/api/scan");
@@ -120,6 +123,7 @@ export default function Dashboard({ me }: { me: Me }) {
   }, []);
 
   useEffect(() => {
+    if (demo) return;
     async function load() {
       try {
         await Promise.all([refreshScan(), refreshJobs(), refreshProfile()]);
@@ -128,15 +132,29 @@ export default function Dashboard({ me }: { me: Me }) {
       }
     }
     void load();
-  }, [refreshScan, refreshJobs, refreshProfile]);
+  }, [demo, refreshScan, refreshJobs, refreshProfile]);
 
   useEffect(() => {
-    if (!jobs.some((j) => ACTIVE_STATUSES.has(j.status))) return;
+    if (demo || !jobs.some((j) => ACTIVE_STATUSES.has(j.status))) return;
     const interval = setInterval(() => refreshJobs().catch(() => {}), 3000);
     return () => clearInterval(interval);
-  }, [jobs, refreshJobs]);
+  }, [demo, jobs, refreshJobs]);
+
+  // Every interval this demo mode starts is tracked so it can be torn down on unmount.
+  useEffect(() => {
+    const intervals = demoIntervals.current;
+    return () => intervals.forEach(clearInterval);
+  }, []);
 
   async function handleScan() {
+    if (demo) {
+      setScanning(true);
+      setTimeout(() => {
+        setScan({ ...MOCK_SCAN, completedAt: new Date().toISOString() });
+        setScanning(false);
+      }, 900);
+      return;
+    }
     setScanning(true);
     setError(null);
     try {
@@ -152,6 +170,10 @@ export default function Dashboard({ me }: { me: Me }) {
   async function handleReview(category: ScanCategory) {
     setReviewCategory(category);
     setReviewItems([]);
+    if (demo) {
+      setReviewItems(MOCK_REVIEW_ITEMS[category]);
+      return;
+    }
     try {
       const { items } = await api<{ items: ReviewItem[] }>(`/api/scan/results?category=${category}`);
       setReviewItems(items);
@@ -160,8 +182,41 @@ export default function Dashboard({ me }: { me: Me }) {
     }
   }
 
+  function startDemoJob(type: JobType) {
+    const total = scan?.counts[JOB_TYPE_TO_CATEGORY[type]] ?? 20;
+    const jobId = `demo-job-${Date.now()}`;
+    setJobs((prev) => [
+      { id: jobId, type, status: "RUNNING", totalItems: total, processedItems: 0, failedItems: 0, pausedUntil: null },
+      ...prev,
+    ]);
+    const interval = setInterval(() => {
+      setJobs((prev) =>
+        prev.map((j) => {
+          if (j.id !== jobId || !ACTIVE_STATUSES.has(j.status)) return j;
+          const processedItems = Math.min(j.totalItems, j.processedItems + Math.ceil(j.totalItems / 12));
+          const done = processedItems >= j.totalItems;
+          if (done) {
+            demoIntervals.current.delete(interval);
+            clearInterval(interval);
+          }
+          return { ...j, processedItems, status: done ? "COMPLETED" : "RUNNING" };
+        }),
+      );
+    }, 700);
+    demoIntervals.current.add(interval);
+  }
+
   async function handleConfirmStart() {
     if (!confirmType) return;
+    if (demo) {
+      setStartingJob(true);
+      setTimeout(() => {
+        startDemoJob(confirmType);
+        setConfirmType(null);
+        setStartingJob(false);
+      }, 500);
+      return;
+    }
     setStartingJob(true);
     setError(null);
     try {
@@ -176,6 +231,10 @@ export default function Dashboard({ me }: { me: Me }) {
   }
 
   async function handleCancel(jobId: string) {
+    if (demo) {
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status: "CANCELLED" } : j)));
+      return;
+    }
     try {
       await api(`/api/jobs/${jobId}`, { method: "DELETE" });
       await refreshJobs();
@@ -185,12 +244,25 @@ export default function Dashboard({ me }: { me: Me }) {
   }
 
   async function handleSignOut() {
+    if (demo) {
+      window.location.href = "/";
+      return;
+    }
     await api("/api/auth/logout", { method: "POST" });
     window.location.reload();
   }
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6">
+      {demo && (
+        <div className="rounded-lg border border-[#3987e5]/40 bg-[#3987e5]/10 p-3 text-sm text-[#86b6ef]">
+          Demo mode &mdash; all data on this page is mock data. Nothing here calls X or touches a real account.{" "}
+          <Link href="/" className="underline hover:no-underline">
+            Back to home
+          </Link>
+        </div>
+      )}
+
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {me.profileImageUrl && (
