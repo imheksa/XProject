@@ -45,17 +45,41 @@ const CATEGORY_LABELS: Record<ScanCategory, string> = {
   INACTIVE_FOLLOWER: "Followers inactive 90+ days",
 };
 
+// "unfollow" actions are reversible (you can re-follow); "remove" is the more
+// destructive one (X has no direct API to re-add a follower), so it gets the
+// critical accent instead of the neutral/info one.
+const CATEGORY_ACCENT: Record<ScanCategory, string> = {
+  NOT_FOLLOWING_BACK: "#3987e5",
+  NON_PREMIUM: "#3987e5",
+  INACTIVE_FOLLOWING: "#3987e5",
+  INACTIVE_FOLLOWER: "#d03b3b",
+};
+
 const CATEGORY_TO_JOB_TYPE = Object.fromEntries(
   (Object.keys(JOB_TYPE_TO_CATEGORY) as JobType[]).map((jt) => [JOB_TYPE_TO_CATEGORY[jt], jt]),
 ) as Record<ScanCategory, JobType>;
 
 const ACTIVE_STATUSES = new Set(["PENDING", "RUNNING", "PAUSED"]);
 
+// Fixed status palette -- always paired with an icon/label, never color alone.
+const JOB_STATUS_STYLE: Record<string, { dot: string; label: string }> = {
+  PENDING: { dot: "#3987e5", label: "Queued" },
+  RUNNING: { dot: "#3987e5", label: "Running" },
+  PAUSED: { dot: "#fab219", label: "Paused (rate limit)" },
+  COMPLETED: { dot: "#0ca30c", label: "Completed" },
+  FAILED: { dot: "#d03b3b", label: "Failed" },
+  CANCELLED: { dot: "#898781", label: "Cancelled" },
+};
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? `Request to ${path} failed`);
   return json;
+}
+
+function StatusDot({ color }: { color: string }) {
+  return <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
 }
 
 export default function Dashboard({ me }: { me: Me }) {
@@ -149,39 +173,49 @@ export default function Dashboard({ me }: { me: Me }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {me.profileImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={me.profileImageUrl} alt={me.username} className="h-10 w-10 rounded-full" />
+            <img
+              src={me.profileImageUrl}
+              alt={me.username}
+              className="h-12 w-12 rounded-full ring-1 ring-neutral-700"
+            />
           )}
           <div>
             <div className="font-semibold">{me.name}</div>
-            <div className="text-sm text-neutral-400">@{me.username}</div>
+            <div className="text-sm text-neutral-500">@{me.username}</div>
           </div>
         </div>
-        <button onClick={handleSignOut} className="text-sm text-neutral-400 hover:text-white">
+        <button
+          onClick={handleSignOut}
+          className="rounded-full border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 hover:border-neutral-700 hover:text-white"
+        >
           Sign out
         </button>
       </header>
 
       {error && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>
+        <div className="rounded-lg border border-[#d03b3b]/40 bg-[#d03b3b]/10 p-3 text-sm text-[#e66767]">{error}</div>
       )}
 
-      <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      {scan && (
+        <section className="grid grid-cols-3 gap-4">
+          <StatTile label="Following" value={scan.followingCount} />
+          <StatTile label="Followers" value={scan.followersCount} />
+          <StatTile label="Last scan" value={formatDate(scan.completedAt)} small />
+        </section>
+      )}
+
+      <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="font-semibold">Account scan</div>
-            {scan ? (
-              <div className="text-sm text-neutral-400">
-                Last scan {formatDate(scan.completedAt)} · {scan.followingCount} following · {scan.followersCount}{" "}
-                followers
-              </div>
-            ) : (
-              <div className="text-sm text-neutral-400">Run a scan to see who to unfollow or remove.</div>
-            )}
+            <div className="text-sm text-neutral-500">
+              {scan ? "Rescan any time to refresh these numbers." : "Run a scan to see who to unfollow or remove."}
+            </div>
           </div>
           <button
             onClick={handleScan}
@@ -196,9 +230,13 @@ export default function Dashboard({ me }: { me: Me }) {
       {scan && (
         <section className="grid gap-4 sm:grid-cols-2">
           {SCAN_CATEGORIES.map((category) => (
-            <div key={category} className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+            <div
+              key={category}
+              className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-5 border-l-2"
+              style={{ borderLeftColor: CATEGORY_ACCENT[category] }}
+            >
               <div>
-                <div className="text-2xl font-bold">{scan.counts[category]}</div>
+                <div className="font-mono text-2xl font-bold tabular-nums">{scan.counts[category]}</div>
                 <div className="text-sm text-neutral-400">{CATEGORY_LABELS[category]}</div>
               </div>
               <div className="flex gap-2">
@@ -211,7 +249,8 @@ export default function Dashboard({ me }: { me: Me }) {
                 <button
                   onClick={() => setConfirmType(CATEGORY_TO_JOB_TYPE[category])}
                   disabled={scan.counts[category] === 0}
-                  className="rounded-full bg-red-500/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-40"
+                  className="rounded-full px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                  style={{ backgroundColor: CATEGORY_ACCENT[category] }}
                 >
                   {category === "INACTIVE_FOLLOWER" ? "Remove all" : "Unfollow all"}
                 </button>
@@ -222,35 +261,45 @@ export default function Dashboard({ me }: { me: Me }) {
       )}
 
       {jobs.length > 0 && (
-        <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <div className="mb-3 font-semibold">Bulk actions</div>
-          <div className="flex flex-col gap-3">
-            {jobs.map((job) => (
-              <div key={job.id} className="flex items-center justify-between gap-3 text-sm">
-                <div className="flex-1">
-                  <div>{JOB_TYPE_LABELS[job.type]}</div>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
-                    <div
-                      className="h-full bg-white"
-                      style={{ width: `${job.totalItems ? (job.processedItems / job.totalItems) * 100 : 0}%` }}
-                    />
+        <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+          <div className="mb-4 font-semibold">Bulk actions</div>
+          <div className="flex flex-col gap-4">
+            {jobs.map((job) => {
+              const style = JOB_STATUS_STYLE[job.status] ?? { dot: "#898781", label: job.status };
+              const pct = job.totalItems ? (job.processedItems / job.totalItems) * 100 : 0;
+              return (
+                <div key={job.id} className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{JOB_TYPE_LABELS[job.type]}</span>
+                      <span className="flex items-center gap-1.5 text-xs text-neutral-400">
+                        <StatusDot color={style.dot} />
+                        {style.label}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                      <div
+                        className="h-full rounded-full transition-[width]"
+                        style={{ width: `${pct}%`, backgroundColor: style.dot }}
+                      />
+                    </div>
+                    <div className="mt-1 font-mono text-xs tabular-nums text-neutral-500">
+                      {job.processedItems}/{job.totalItems} processed
+                      {job.failedItems > 0 && ` · ${job.failedItems} failed`}
+                      {job.status === "PAUSED" && job.pausedUntil && ` · resumes ${formatDate(job.pausedUntil)}`}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">
-                    {job.processedItems}/{job.totalItems} processed
-                    {job.failedItems > 0 && ` · ${job.failedItems} failed`} · {job.status}
-                    {job.status === "PAUSED" && job.pausedUntil && ` until ${formatDate(job.pausedUntil)}`}
-                  </div>
+                  {ACTIVE_STATUSES.has(job.status) && (
+                    <button
+                      onClick={() => handleCancel(job.id)}
+                      className="shrink-0 rounded-full border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </div>
-                {ACTIVE_STATUSES.has(job.status) && (
-                  <button
-                    onClick={() => handleCancel(job.id)}
-                    className="shrink-0 rounded-full border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -312,7 +361,7 @@ export default function Dashboard({ me }: { me: Me }) {
               <button
                 onClick={handleConfirmStart}
                 disabled={startingJob}
-                className="rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-50"
+                className="rounded-full bg-[#d03b3b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e66767] disabled:opacity-50"
               >
                 {startingJob ? "Starting…" : "Confirm"}
               </button>
@@ -320,6 +369,17 @@ export default function Dashboard({ me }: { me: Me }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StatTile({ label, value, small }: { label: string; value: number | string; small?: boolean }) {
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="text-xs text-neutral-500">{label}</div>
+      <div className={`mt-1 font-mono tabular-nums ${small ? "text-base font-medium" : "text-2xl font-bold"}`}>
+        {value}
+      </div>
     </div>
   );
 }
