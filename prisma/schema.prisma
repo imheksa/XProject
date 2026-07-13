@@ -165,12 +165,19 @@ model TrackedCompetitor {
 }
 
 model CompetitorSnapshot {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   trackedCompetitorId String
   followersCount      Int
   followingCount      Int
   postsLast30d        Int
-  capturedAt          DateTime @default(now())
+  topPostId           String?
+  topPostText         String?
+  topPostedAt         DateTime?
+  topPostLikeCount    Int?
+  topPostRetweetCount Int?
+  topPostReplyCount   Int?
+  topPostQuoteCount   Int?
+  capturedAt          DateTime  @default(now())
 
   trackedCompetitor TrackedCompetitor @relation(fields: [trackedCompetitorId], references: [id], onDelete: Cascade)
 

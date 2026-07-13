@@ -2,7 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/apiClient";
-import { MOCK_COMPETITORS } from "@/lib/mockData";
+import { formatDate } from "@/lib/format";
+import { MOCK_COMPETITORS, mockTopPost } from "@/lib/mockData";
+
+interface TopPost {
+  id: string;
+  text: string;
+  postedAt: string;
+  likeCount: number;
+  retweetCount: number;
+  replyCount: number;
+  quoteCount: number;
+  engagement: number;
+}
 
 interface Competitor {
   id: string;
@@ -12,6 +24,7 @@ interface Competitor {
   postsLast30d: number;
   vsYourFollowers: number;
   vsYourPosts30d: number;
+  topPost: TopPost | null;
 }
 
 const MAX_COMPETITORS = 3;
@@ -51,6 +64,7 @@ export default function CompetitorsSection({ demo }: { demo: boolean }) {
           postsLast30d: Math.round(5 + Math.random() * 40),
           vsYourFollowers: 0,
           vsYourPosts30d: 0,
+          topPost: mockTopPost(prev.length + 1),
         },
       ]);
       setInput("");
@@ -129,6 +143,19 @@ export default function CompetitorsSection({ demo }: { demo: boolean }) {
               <CompareStat label="Following" value={c.followingCount} />
               <CompareStat label="Posts (30d)" value={c.postsLast30d} diffNeutral={c.vsYourPosts30d} />
             </div>
+            {c.topPost && (
+              <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+                <div className="mb-1 text-xs text-neutral-500">Their top post (30d)</div>
+                <div className="line-clamp-2 text-sm text-neutral-200">{c.topPost.text}</div>
+                <div className="mt-1 flex flex-wrap gap-3 font-mono text-xs tabular-nums text-neutral-500">
+                  <span>{formatDate(c.topPost.postedAt)}</span>
+                  <span>♥ {c.topPost.likeCount}</span>
+                  <span>↻ {c.topPost.retweetCount}</span>
+                  <span>↩ {c.topPost.replyCount}</span>
+                  <span>{c.topPost.engagement} total</span>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {!loading && competitors.length === 0 && (

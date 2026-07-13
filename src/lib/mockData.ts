@@ -123,6 +123,23 @@ export const MOCK_ANALYTICS: Record<7 | 30, ReturnType<typeof mockAnalytics>> = 
   30: mockAnalytics(30),
 };
 
+export function mockTopPost(seed: number) {
+  const likeCount = 300 + seed * 47;
+  const retweetCount = Math.round(likeCount * 0.2);
+  const replyCount = Math.round(likeCount * 0.1);
+  const quoteCount = Math.round(likeCount * 0.04);
+  return {
+    id: `demo-competitor-post-${seed}`,
+    text: "We just crossed a big milestone -- here's a behind-the-scenes look at how we got here.",
+    postedAt: daysAgo(3).toISOString(),
+    likeCount,
+    retweetCount,
+    replyCount,
+    quoteCount,
+    engagement: likeCount + retweetCount + replyCount + quoteCount,
+  };
+}
+
 export const MOCK_COMPETITORS = [
   {
     id: "demo-competitor-1",
@@ -133,6 +150,7 @@ export const MOCK_COMPETITORS = [
     followersGrowth30d: 45,
     vsYourFollowers: 2100 - 1240,
     vsYourPosts30d: 21 - 34,
+    topPost: mockTopPost(1),
   },
 ];
 
