@@ -64,6 +64,15 @@ Then open http://localhost:3000 and sign in with X.
 - **Remove follower**: X's API has no direct "remove follower" endpoint, so
   this app blocks then immediately unblocks the account, which removes
   them as a follower without leaving them blocked.
+- **Profile stats**: the dashboard's KPI row (followers, following, posts in
+  the last 30 days, follower growth over 30 days) is cheap to refresh
+  compared to a full scan — it's one `GET /users/me` call plus a paginated
+  read of your own recent posts, throttled to once per
+  `MIN_PROFILE_REFRESH_INTERVAL_MS` (default 6h) and cached in
+  `ProfileSnapshot`. X exposes no history endpoint for follower counts, so
+  30-day growth is computed from snapshots this app has taken itself —
+  it's only meaningful once the app has been running for ~30 days; until
+  then the UI shows growth "since" the first snapshot instead.
 
 ### Running the background worker
 

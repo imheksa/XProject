@@ -19,6 +19,15 @@ interface ScanSummary {
   counts: Record<ScanCategory, number>;
 }
 
+interface ProfileSummary {
+  followersCount: number;
+  followingCount: number;
+  postsLast30d: number;
+  followersGrowth30d: number | null;
+  followersGrowthSince: string | null;
+  capturedAt: string;
+}
+
 interface JobRow {
   id: string;
   type: JobType;
@@ -84,6 +93,7 @@ function StatusDot({ color }: { color: string }) {
 
 export default function Dashboard({ me }: { me: Me }) {
   const [scan, setScan] = useState<ScanSummary | null>(null);
+  const [profile, setProfile] = useState<ProfileSummary | null>(null);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,16 +112,23 @@ export default function Dashboard({ me }: { me: Me }) {
     setJobs(jobs);
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    // POST here is safe to call on every load: the server only hits the X
+    // API when the cached snapshot is stale, otherwise it just returns it.
+    const { profile } = await api<{ profile: ProfileSummary | null }>("/api/profile", { method: "POST" });
+    setProfile(profile);
+  }, []);
+
   useEffect(() => {
     async function load() {
       try {
-        await Promise.all([refreshScan(), refreshJobs()]);
+        await Promise.all([refreshScan(), refreshJobs(), refreshProfile()]);
       } catch (e) {
         setError((e as Error).message);
       }
     }
     void load();
-  }, [refreshScan, refreshJobs]);
+  }, [refreshScan, refreshJobs, refreshProfile]);
 
   useEffect(() => {
     if (!jobs.some((j) => ACTIVE_STATUSES.has(j.status))) return;
@@ -201,11 +218,12 @@ export default function Dashboard({ me }: { me: Me }) {
         <div className="rounded-lg border border-[#d03b3b]/40 bg-[#d03b3b]/10 p-3 text-sm text-[#e66767]">{error}</div>
       )}
 
-      {scan && (
-        <section className="grid grid-cols-3 gap-4">
-          <StatTile label="Following" value={scan.followingCount} />
-          <StatTile label="Followers" value={scan.followersCount} />
-          <StatTile label="Last scan" value={formatDate(scan.completedAt)} small />
+      {profile && (
+        <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatTile label="Followers" value={profile.followersCount} />
+          <StatTile label="Following" value={profile.followingCount} />
+          <StatTile label="Posts (30d)" value={profile.postsLast30d} />
+          <GrowthTile growth={profile.followersGrowth30d} since={profile.followersGrowthSince} />
         </section>
       )}
 
@@ -214,7 +232,9 @@ export default function Dashboard({ me }: { me: Me }) {
           <div>
             <div className="font-semibold">Account scan</div>
             <div className="text-sm text-neutral-500">
-              {scan ? "Rescan any time to refresh these numbers." : "Run a scan to see who to unfollow or remove."}
+              {scan
+                ? `Last scan ${formatDate(scan.completedAt)}. Rescan any time to refresh who to unfollow or remove.`
+                : "Run a scan to see who to unfollow or remove."}
             </div>
           </div>
           <button
@@ -379,6 +399,22 @@ function StatTile({ label, value, small }: { label: string; value: number | stri
       <div className="text-xs text-neutral-500">{label}</div>
       <div className={`mt-1 font-mono tabular-nums ${small ? "text-base font-medium" : "text-2xl font-bold"}`}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+function GrowthTile({ growth, since }: { growth: number | null; since: string | null }) {
+  const color = growth === null || growth === 0 ? "#898781" : growth > 0 ? "#0ca30c" : "#d03b3b";
+  const display = growth === null ? "–" : `${growth > 0 ? "+" : ""}${growth}`;
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="text-xs text-neutral-500">Followers growth (30d)</div>
+      <div className="mt-1 font-mono text-2xl font-bold tabular-nums" style={{ color }}>
+        {display}
+      </div>
+      <div className="mt-0.5 text-xs text-neutral-600">
+        {since ? `since ${formatDate(since)}` : "not enough history yet"}
       </div>
     </div>
   );

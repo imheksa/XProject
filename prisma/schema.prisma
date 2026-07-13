@@ -24,8 +24,25 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  scans ScanRun[]
-  jobs  Job[]
+  scans            ScanRun[]
+  jobs             Job[]
+  profileSnapshots ProfileSnapshot[]
+}
+
+// A cheap, frequent snapshot of profile-level metrics (unlike ScanRun, which
+// crawls the whole following/followers graph). Lets us compute follower
+// growth over time without X exposing a history endpoint for it.
+model ProfileSnapshot {
+  id             String   @id @default(cuid())
+  userId         String
+  followersCount Int
+  followingCount Int
+  postsLast30d   Int
+  capturedAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
 }
 
 // ScanCategory: "NOT_FOLLOWING_BACK" | "NON_PREMIUM" | "INACTIVE_FOLLOWING" | "INACTIVE_FOLLOWER"

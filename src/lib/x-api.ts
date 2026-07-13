@@ -149,9 +149,15 @@ export interface XUser {
   verified?: boolean;
   verified_type?: "none" | "blue" | "business" | "government";
   most_recent_tweet_id?: string;
+  public_metrics?: {
+    followers_count: number;
+    following_count: number;
+    tweet_count: number;
+    listed_count: number;
+  };
 }
 
-const USER_FIELDS = "profile_image_url,verified,verified_type,most_recent_tweet_id";
+const USER_FIELDS = "profile_image_url,verified,verified_type,most_recent_tweet_id,public_metrics";
 
 async function xFetch(path: string, accessToken: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -242,6 +248,36 @@ export async function getTweetCreatedAtByIds(
     }
   }
   return result;
+}
+
+/**
+ * Counts a user's own posts since a given date via their tweet timeline
+ * (not the search/counts endpoints, which cap history at 7 days on
+ * non-Enterprise tiers). Capped at `maxPages` requests (100 tweets each)
+ * to bound API credit usage for very high-volume accounts.
+ */
+export async function getUserPostCountSince(
+  accessToken: string,
+  userId: string,
+  since: Date,
+  maxPages = 5,
+): Promise<number> {
+  let total = 0;
+  let token: string | undefined;
+  let pages = 0;
+  do {
+    const params = new URLSearchParams({
+      max_results: "100",
+      start_time: since.toISOString(),
+    });
+    if (token) params.set("pagination_token", token);
+    const res = await xFetch(`/users/${userId}/tweets?${params.toString()}`, accessToken);
+    const json = await res.json();
+    total += json.meta?.result_count ?? 0;
+    token = json.meta?.next_token;
+    pages += 1;
+  } while (token && pages < maxPages);
+  return total;
 }
 
 export async function unfollowUser(accessToken: string, sourceUserId: string, targetUserId: string): Promise<void> {
