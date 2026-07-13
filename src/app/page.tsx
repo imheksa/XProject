@@ -1,4 +1,5 @@
 import Dashboard from "@/components/Dashboard";
+import LandingPage from "@/components/LandingPage";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -11,5 +12,6 @@ export default async function Home() {
       })
     : null;
 
-  return <Dashboard initialMe={user} />;
+  if (!user) return <LandingPage />;
+  return <Dashboard me={user} />;
 }

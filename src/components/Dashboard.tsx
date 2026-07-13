@@ -58,8 +58,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return json;
 }
 
-export default function Dashboard({ initialMe }: { initialMe: Me | null }) {
-  const [me] = useState<Me | null>(initialMe);
+export default function Dashboard({ me }: { me: Me }) {
   const [scan, setScan] = useState<ScanSummary | null>(null);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -80,7 +79,6 @@ export default function Dashboard({ initialMe }: { initialMe: Me | null }) {
   }, []);
 
   useEffect(() => {
-    if (!me) return;
     async function load() {
       try {
         await Promise.all([refreshScan(), refreshJobs()]);
@@ -89,31 +87,13 @@ export default function Dashboard({ initialMe }: { initialMe: Me | null }) {
       }
     }
     void load();
-  }, [me, refreshScan, refreshJobs]);
+  }, [refreshScan, refreshJobs]);
 
   useEffect(() => {
     if (!jobs.some((j) => ACTIVE_STATUSES.has(j.status))) return;
     const interval = setInterval(() => refreshJobs().catch(() => {}), 3000);
     return () => clearInterval(interval);
   }, [jobs, refreshJobs]);
-
-  if (!me) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
-        <h1 className="text-3xl font-bold">X Bulk Unfollow</h1>
-        <p className="max-w-md text-neutral-400">
-          Clean up who you follow on X: unfollow accounts that don&apos;t follow back, unfollow non-Premium
-          accounts, unfollow accounts inactive 90+ days, or remove inactive followers.
-        </p>
-        <a
-          href="/api/auth/login"
-          className="rounded-full bg-white px-6 py-3 font-semibold text-black hover:bg-neutral-200"
-        >
-          Sign in with X
-        </a>
-      </div>
-    );
-  }
 
   async function handleScan() {
     setScanning(true);
