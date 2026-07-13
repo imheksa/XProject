@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/apiClient";
 import { MOCK_NOTIFICATIONS } from "@/lib/mockData";
 import { formatDate } from "@/lib/format";
+import { IconBell } from "@/components/icons";
 
 interface NotificationRow {
   id: string;
@@ -12,15 +13,6 @@ interface NotificationRow {
   body: string;
   read: boolean;
   createdAt: string;
-}
-
-function BellIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
 }
 
 export default function NotificationsBell({ demo }: { demo: boolean }) {
@@ -66,7 +58,7 @@ export default function NotificationsBell({ demo }: { demo: boolean }) {
         className="relative rounded-full border border-neutral-800 p-2.5 text-neutral-400 hover:border-neutral-700 hover:text-white"
         aria-label="Notifications"
       >
-        <BellIcon />
+        <IconBell />
         {unreadCount > 0 && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d03b3b] px-1 font-mono text-[10px] font-bold text-white">
             {unreadCount}
