@@ -80,7 +80,7 @@ export default function Dashboard({ me, demo = false }: { me: Me; demo?: boolean
         <Sidebar items={NAV_ITEMS} active={active} onSelect={setActive} />
 
         <main className="flex-1 p-6">
-          <div className="mx-auto w-full max-w-3xl">
+          <div className={`mx-auto w-full ${active === "analytics" ? "max-w-6xl" : "max-w-3xl"}`}>
             {active === "overview" && <OverviewSection me={me} demo={demo} />}
             {active === "cleanup" && <CleanupSection demo={demo} />}
             {active === "analytics" && <AnalyticsSection demo={demo} />}

@@ -117,18 +117,20 @@ export default function CompetitorCompare({
             youLabel="You"
             competitorLabel={`@${compare.username}`}
           />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <CompareStat label="Posts" you={you.totalPosts} them={compare.totals.postsLast30d} />
-            <CompareStat
+
+          <div className="flex flex-col gap-4">
+            <HeadToHeadRow label="Posts" you={you.totalPosts} them={compare.totals.postsLast30d} />
+            <HeadToHeadRow
               label="Engagement rate"
               you={you.engagementRatePct}
               them={compare.totals.engagementRatePct}
               format={(v) => `${v.toFixed(2)}%`}
             />
-            <CompareStat label="Likes" you={you.totalLikes} them={compare.totals.totalLikes} />
-            <CompareStat label="Comments" you={you.totalReplies} them={compare.totals.totalReplies} />
-            <CompareStat label="Reposts" you={you.totalRetweets} them={compare.totals.totalRetweets} />
+            <HeadToHeadRow label="Likes" you={you.totalLikes} them={compare.totals.totalLikes} />
+            <HeadToHeadRow label="Comments" you={you.totalReplies} them={compare.totals.totalReplies} />
+            <HeadToHeadRow label="Reposts" you={you.totalRetweets} them={compare.totals.totalRetweets} />
           </div>
+
           <div className="text-xs text-neutral-600">
             Your numbers reflect the {windowDays}D window above; @{compare.username}&apos;s reflect their last 30 days.
           </div>
@@ -138,7 +140,10 @@ export default function CompetitorCompare({
   );
 }
 
-function CompareStat({
+const YOU_COLOR = "#3987e5";
+const COMPETITOR_COLOR = "#e66767";
+
+function HeadToHeadRow({
   label,
   you,
   them,
@@ -150,16 +155,34 @@ function CompareStat({
   format?: (v: number) => string;
 }) {
   const fmt = format ?? ((v: number) => v.toLocaleString());
+  const youVal = you ?? 0;
+  const themVal = them ?? 0;
+  const max = Math.max(youVal, themVal, 1);
+
   return (
-    <div className="rounded-lg border border-neutral-800 p-3">
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className="mt-1 flex items-baseline justify-between">
-        <span className="font-mono text-base font-bold tabular-nums">{you === null ? "–" : fmt(you)}</span>
-        <span className="text-xs text-neutral-500">you</span>
+    <div>
+      <div className="mb-1.5 text-xs text-neutral-500">{label}</div>
+      <div className="flex items-center gap-2">
+        <span className="w-14 shrink-0 text-right font-mono text-xs font-semibold tabular-nums" style={{ color: YOU_COLOR }}>
+          {you === null ? "–" : fmt(you)}
+        </span>
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-800">
+          <div className="h-full rounded-full" style={{ width: `${(youVal / max) * 100}%`, backgroundColor: YOU_COLOR }} />
+        </div>
       </div>
-      <div className="mt-0.5 flex items-baseline justify-between">
-        <span className="font-mono text-sm tabular-nums text-neutral-400">{them === null ? "–" : fmt(them)}</span>
-        <span className="text-xs text-neutral-600">them</span>
+      <div className="mt-1 flex items-center gap-2">
+        <span
+          className="w-14 shrink-0 text-right font-mono text-xs font-semibold tabular-nums"
+          style={{ color: COMPETITOR_COLOR }}
+        >
+          {them === null ? "–" : fmt(them)}
+        </span>
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-800">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${(themVal / max) * 100}%`, backgroundColor: COMPETITOR_COLOR }}
+          />
+        </div>
       </div>
     </div>
   );

@@ -64,80 +64,84 @@ export default function AnalyticsSection({ demo }: { demo: boolean }) {
   if (!loading && !data) return null;
 
   return (
-    <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="font-semibold">Analytics</div>
-        <div className="flex gap-0.5 rounded-full border border-neutral-800 p-0.5 text-xs">
-          {([7, 30] as const).map((w) => (
-            <button
-              key={w}
-              onClick={() => setWindowDays(w)}
-              className={`rounded-full px-3 py-1 ${
-                windowDays === w ? "bg-white font-semibold text-black" : "text-neutral-400 hover:text-white"
-              }`}
-            >
-              {w}D
-            </button>
-          ))}
+    <div className="grid gap-5 lg:grid-cols-3">
+      <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 lg:col-span-2">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="font-semibold">Analytics</div>
+          <div className="flex gap-0.5 rounded-full border border-neutral-800 p-0.5 text-xs">
+            {([7, 30] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => setWindowDays(w)}
+                className={`rounded-full px-3 py-1 ${
+                  windowDays === w ? "bg-white font-semibold text-black" : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                {w}D
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {loading && <div className="text-sm text-neutral-500">Loading…</div>}
+        {loading && <div className="text-sm text-neutral-500">Loading…</div>}
 
-      {!loading && data && (
-        <div className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <MiniStat label="Posts" value={data.totalPosts} />
-            <MiniStat label="Total engagement" value={data.totalEngagement} />
-            <MiniStat
-              label="Engagement rate"
-              value={data.engagementRatePct !== null ? `${data.engagementRatePct.toFixed(2)}%` : "–"}
-            />
-            <MiniStat label="Reply share" value={data.replySharePct !== null ? `${data.replySharePct.toFixed(0)}%` : "–"} />
-          </div>
+        {!loading && data && (
+          <div className="flex flex-col gap-5">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <MiniStat label="Posts" value={data.totalPosts} />
+              <MiniStat label="Total engagement" value={data.totalEngagement} />
+              <MiniStat
+                label="Engagement rate"
+                value={data.engagementRatePct !== null ? `${data.engagementRatePct.toFixed(2)}%` : "–"}
+              />
+              <MiniStat label="Reply share" value={data.replySharePct !== null ? `${data.replySharePct.toFixed(0)}%` : "–"} />
+            </div>
 
-          <div>
-            <div className="mb-2 text-xs text-neutral-500">Follower growth</div>
-            <GrowthChart data={data.growth.map((g) => ({ date: g.date, value: g.followersCount }))} />
-          </div>
+            <div>
+              <div className="mb-2 text-xs text-neutral-500">Follower growth</div>
+              <GrowthChart data={data.growth.map((g) => ({ date: g.date, value: g.followersCount }))} />
+            </div>
 
-          <div>
-            <div className="mb-2 text-xs text-neutral-500">Top content ({windowDays}D)</div>
-            <div className="flex flex-col gap-2">
-              {data.topPosts.length === 0 && <div className="text-sm text-neutral-500">No posts in this window.</div>}
-              {data.topPosts.map((p) => (
-                <div key={p.id} className="rounded-lg border border-neutral-800 p-3 text-sm">
-                  <div className="line-clamp-2 text-neutral-200">{p.text}</div>
-                  <div className="mt-1 flex flex-wrap gap-3 font-mono text-xs tabular-nums text-neutral-500">
-                    <span>{formatDate(p.postedAt)}</span>
-                    <span>♥ {p.likeCount}</span>
-                    <span>↻ {p.retweetCount}</span>
-                    <span>↩ {p.replyCount}</span>
-                    <span>{p.engagement} total</span>
+            <div>
+              <div className="mb-2 text-xs text-neutral-500">Top content ({windowDays}D)</div>
+              <div className="flex flex-col gap-2">
+                {data.topPosts.length === 0 && <div className="text-sm text-neutral-500">No posts in this window.</div>}
+                {data.topPosts.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-neutral-800 p-3 text-sm">
+                    <div className="line-clamp-2 text-neutral-200">{p.text}</div>
+                    <div className="mt-1 flex flex-wrap gap-3 font-mono text-xs tabular-nums text-neutral-500">
+                      <span>{formatDate(p.postedAt)}</span>
+                      <span>♥ {p.likeCount}</span>
+                      <span>↻ {p.retweetCount}</span>
+                      <span>↩ {p.replyCount}</span>
+                      <span>{p.engagement} total</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
+        )}
+      </section>
 
-          <div>
-            <div className="mb-2 text-xs text-neutral-500">Compare with a competitor</div>
-            <CompetitorCompare
-              demo={demo}
-              windowDays={windowDays}
-              you={{
-                growth: data.growth.map((g) => ({ date: g.date, value: g.followersCount })),
-                totalPosts: data.totalPosts,
-                totalLikes: data.totalLikes,
-                totalRetweets: data.totalRetweets,
-                totalReplies: data.totalReplies,
-                engagementRatePct: data.engagementRatePct,
-              }}
-            />
-          </div>
-        </div>
-      )}
-    </section>
+      <section className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 lg:col-span-1">
+        <div className="mb-4 font-semibold">Compare with a competitor</div>
+        {!loading && data && (
+          <CompetitorCompare
+            demo={demo}
+            windowDays={windowDays}
+            you={{
+              growth: data.growth.map((g) => ({ date: g.date, value: g.followersCount })),
+              totalPosts: data.totalPosts,
+              totalLikes: data.totalLikes,
+              totalRetweets: data.totalRetweets,
+              totalReplies: data.totalReplies,
+              engagementRatePct: data.engagementRatePct,
+            }}
+          />
+        )}
+      </section>
+    </div>
   );
 }
 
