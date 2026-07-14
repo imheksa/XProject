@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireAccessToken } from "@/lib/auth";
 import { getUserByUsername, getUserPostsWithMetrics, type XPost, XApiError } from "@/lib/x-api";
+import { DAY_MS, startOfDay, type AnalyticsWindow } from "@/lib/analytics";
 
 export const MAX_TRACKED_COMPETITORS = 3;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -28,7 +29,13 @@ function topPostData(posts: XPost[]) {
 async function fetchCompetitorMetrics(accessToken: string, competitorUserId: string) {
   const since = new Date(Date.now() - THIRTY_DAYS_MS);
   const posts = await getUserPostsWithMetrics(accessToken, competitorUserId, since, 2);
-  return { postsLast30d: posts.length, topPost: topPostData(posts) };
+  return {
+    postsLast30d: posts.length,
+    totalLikes: posts.reduce((a, p) => a + (p.public_metrics?.like_count ?? 0), 0),
+    totalRetweets: posts.reduce((a, p) => a + (p.public_metrics?.retweet_count ?? 0), 0),
+    totalReplies: posts.reduce((a, p) => a + (p.public_metrics?.reply_count ?? 0), 0),
+    topPost: topPostData(posts),
+  };
 }
 
 export async function addCompetitor(userId: string, username: string) {
@@ -49,7 +56,10 @@ export async function addCompetitor(userId: string, username: string) {
   });
   if (existing) throw new Error(`You're already tracking @${cleanUsername}.`);
 
-  const { postsLast30d, topPost } = await fetchCompetitorMetrics(accessToken, competitor.id);
+  const { postsLast30d, totalLikes, totalRetweets, totalReplies, topPost } = await fetchCompetitorMetrics(
+    accessToken,
+    competitor.id,
+  );
 
   return prisma.trackedCompetitor.create({
     data: {
@@ -61,6 +71,9 @@ export async function addCompetitor(userId: string, username: string) {
           followersCount: competitor.public_metrics?.followers_count ?? 0,
           followingCount: competitor.public_metrics?.following_count ?? 0,
           postsLast30d,
+          totalLikes,
+          totalRetweets,
+          totalReplies,
           ...topPost,
         },
       },
@@ -158,13 +171,19 @@ async function refreshCompetitorIfStale(trackedCompetitorId: string, userId: str
   try {
     const { accessToken } = await requireAccessToken(userId);
     const competitor = await getUserByUsername(accessToken, tracked.competitorUsername);
-    const { postsLast30d, topPost } = await fetchCompetitorMetrics(accessToken, competitor.id);
+    const { postsLast30d, totalLikes, totalRetweets, totalReplies, topPost } = await fetchCompetitorMetrics(
+      accessToken,
+      competitor.id,
+    );
     return prisma.competitorSnapshot.create({
       data: {
         trackedCompetitorId,
         followersCount: competitor.public_metrics?.followers_count ?? 0,
         followingCount: competitor.public_metrics?.following_count ?? 0,
         postsLast30d,
+        totalLikes,
+        totalRetweets,
+        totalReplies,
         ...topPost,
       },
     });
@@ -174,4 +193,91 @@ async function refreshCompetitorIfStale(trackedCompetitorId: string, userId: str
     if (err instanceof XApiError) return latest;
     throw err;
   }
+}
+
+export interface CompetitorGrowthPoint {
+  date: string;
+  followersCount: number;
+}
+
+/** Day-bucketed follower count history, same carry-forward approach as getMetricSeries. */
+async function getCompetitorGrowthSeries(
+  trackedCompetitorId: string,
+  windowDays: AnalyticsWindow,
+): Promise<CompetitorGrowthPoint[]> {
+  const start = startOfDay(new Date(Date.now() - (windowDays - 1) * DAY_MS));
+
+  const [snapshots, prior] = await Promise.all([
+    prisma.competitorSnapshot.findMany({
+      where: { trackedCompetitorId, capturedAt: { gte: start } },
+      orderBy: { capturedAt: "asc" },
+    }),
+    prisma.competitorSnapshot.findFirst({
+      where: { trackedCompetitorId, capturedAt: { lt: start } },
+      orderBy: { capturedAt: "desc" },
+    }),
+  ]);
+
+  const points: CompetitorGrowthPoint[] = [];
+  let carried = prior?.followersCount ?? snapshots[0]?.followersCount ?? 0;
+  let idx = 0;
+
+  for (let i = 0; i < windowDays; i++) {
+    const dayStart = new Date(start.getTime() + i * DAY_MS);
+    const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+    while (idx < snapshots.length && snapshots[idx].capturedAt < dayEnd) {
+      carried = snapshots[idx].followersCount;
+      idx += 1;
+    }
+    points.push({ date: dayStart.toISOString(), followersCount: carried });
+  }
+  return points;
+}
+
+export interface CompetitorAnalyticsComparison {
+  id: string;
+  username: string;
+  growth: CompetitorGrowthPoint[];
+  totals: {
+    // Competitor aggregates are always over their last 30 days -- that's the
+    // window fetchCompetitorMetrics always uses -- regardless of the 7D/30D
+    // toggle applied to "your" side of the comparison.
+    postsLast30d: number;
+    totalLikes: number;
+    totalRetweets: number;
+    totalReplies: number;
+    engagementRatePct: number | null;
+  };
+}
+
+/** Pure read-model -- relies on getCompetitorsWithComparison having refreshed recently. */
+export async function getCompetitorAnalyticsComparison(
+  userId: string,
+  trackedCompetitorId: string,
+  windowDays: AnalyticsWindow,
+): Promise<CompetitorAnalyticsComparison | null> {
+  const tracked = await prisma.trackedCompetitor.findFirst({ where: { id: trackedCompetitorId, userId } });
+  if (!tracked) return null;
+
+  const latest = await prisma.competitorSnapshot.findFirst({
+    where: { trackedCompetitorId },
+    orderBy: { capturedAt: "desc" },
+  });
+  if (!latest) return null;
+
+  const growth = await getCompetitorGrowthSeries(trackedCompetitorId, windowDays);
+  const totalEngagement = latest.totalLikes + latest.totalRetweets + latest.totalReplies;
+
+  return {
+    id: tracked.id,
+    username: tracked.competitorUsername,
+    growth,
+    totals: {
+      postsLast30d: latest.postsLast30d,
+      totalLikes: latest.totalLikes,
+      totalRetweets: latest.totalRetweets,
+      totalReplies: latest.totalReplies,
+      engagementRatePct: latest.followersCount > 0 ? (totalEngagement / latest.followersCount) * 100 : null,
+    },
+  };
 }

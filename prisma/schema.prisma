@@ -170,6 +170,9 @@ model CompetitorSnapshot {
   followersCount      Int
   followingCount      Int
   postsLast30d        Int
+  totalLikes          Int       @default(0)
+  totalRetweets       Int       @default(0)
+  totalReplies        Int       @default(0)
   topPostId           String?
   topPostText         String?
   topPostedAt         DateTime?

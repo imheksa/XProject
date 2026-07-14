@@ -180,6 +180,42 @@ export const MOCK_COMPETITORS = [
   },
 ];
 
+function mockCompetitorGrowth(windowDays: 7 | 30) {
+  return Array.from({ length: windowDays }, (_, i) => ({
+    date: daysAgo(windowDays - 1 - i).toISOString(),
+    followersCount: Math.round(1970 + (i * 130) / windowDays + Math.sin(i) * 12),
+  }));
+}
+
+export const MOCK_COMPETITOR_COMPARE: Record<
+  7 | 30,
+  {
+    id: string;
+    username: string;
+    growth: { date: string; followersCount: number }[];
+    totals: {
+      postsLast30d: number;
+      totalLikes: number;
+      totalRetweets: number;
+      totalReplies: number;
+      engagementRatePct: number | null;
+    };
+  }
+> = {
+  7: {
+    id: "demo-competitor-1",
+    username: "rival_creator",
+    growth: mockCompetitorGrowth(7),
+    totals: { postsLast30d: 21, totalLikes: 3400, totalRetweets: 610, totalReplies: 410, engagementRatePct: 19.5 },
+  },
+  30: {
+    id: "demo-competitor-1",
+    username: "rival_creator",
+    growth: mockCompetitorGrowth(30),
+    totals: { postsLast30d: 21, totalLikes: 3400, totalRetweets: 610, totalReplies: 410, engagementRatePct: 19.5 },
+  },
+};
+
 export const MOCK_NOTIFICATIONS = [
   {
     id: "demo-notif-1",

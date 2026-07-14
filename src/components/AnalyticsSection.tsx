@@ -5,6 +5,7 @@ import { api } from "@/lib/apiClient";
 import { MOCK_ANALYTICS } from "@/lib/mockData";
 import { formatDate } from "@/lib/format";
 import GrowthChart from "@/components/GrowthChart";
+import CompetitorCompare from "@/components/CompetitorCompare";
 
 interface TopPost {
   id: string;
@@ -21,6 +22,9 @@ interface AnalyticsSummary {
   windowDays: 7 | 30;
   totalPosts: number;
   totalEngagement: number;
+  totalLikes: number;
+  totalRetweets: number;
+  totalReplies: number;
   engagementRatePct: number | null;
   replySharePct: number | null;
   growth: { date: string; followersCount: number }[];
@@ -94,7 +98,7 @@ export default function AnalyticsSection({ demo }: { demo: boolean }) {
 
           <div>
             <div className="mb-2 text-xs text-neutral-500">Follower growth</div>
-            <GrowthChart data={data.growth} />
+            <GrowthChart data={data.growth.map((g) => ({ date: g.date, value: g.followersCount }))} />
           </div>
 
           <div>
@@ -114,6 +118,22 @@ export default function AnalyticsSection({ demo }: { demo: boolean }) {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div>
+            <div className="mb-2 text-xs text-neutral-500">Compare with a competitor</div>
+            <CompetitorCompare
+              demo={demo}
+              windowDays={windowDays}
+              you={{
+                growth: data.growth.map((g) => ({ date: g.date, value: g.followersCount })),
+                totalPosts: data.totalPosts,
+                totalLikes: data.totalLikes,
+                totalRetweets: data.totalRetweets,
+                totalReplies: data.totalReplies,
+                engagementRatePct: data.engagementRatePct,
+              }}
+            />
           </div>
         </div>
       )}
